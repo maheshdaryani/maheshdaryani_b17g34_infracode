@@ -1,0 +1,127 @@
+trigger :
+- main
+pool: maheshagent
+
+# variables:
+#   working-path: $(System.DefaultWorkingDirectory)/enviroment/dev
+
+# -------Terraform for init-validtate--and plan-------
+
+stages:
+-  stage: Precommit
+   displayName: pre-commit
+   pool: maheshagent
+   jobs:
+   - job: terraformvalidate
+     displayName: terraform validate
+     steps:
+     - task: TerraformInstaller@1
+       inputs:
+         terraformVersion: 'latest'
+     - task: TerraformTask@5
+       displayName: terraform init
+       inputs:
+         provider: 'azurerm'
+         command: 'init'
+         workingDirectory: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+         backendServiceArm: 'maheshsvc'
+         backendAzureRmStorageAccountName: 'maheshdstg07'
+         backendAzureRmContainerName: 'maheshcont'
+         backendAzureRmKey: 'terraform.tfstate'
+
+     - task: PowerShell@2
+       continueOnError: true
+       displayName: infracost check
+       inputs: 
+        targetType: 'inline'
+        script: |
+          Invoke-WebRequest https://github.com/infracost/infracost/releases/latest/download/infracost-windows-amd64.tar.gz -OutFile infracost.tar.gz
+          tar -xvf infracost.tar.gz
+          .\infracost.exe --version
+          .\infracost.exe auth login
+          .\infracost.exe breakdown --path '$(System.DefaultWorkingDirectory)/enviroment/dev)' --format table
+     - task: TerraformTask@5
+       displayName: terrafirn validate
+       inputs:
+         provider: 'azurerm'
+         command: 'validate'
+         workingDirectory: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+     - task: TerraformTask@5
+       inputs:
+         provider: 'azurerm'
+         command: 'custom'
+         workingDirectory: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+         outputTo: 'console'
+         customCommand: 'fmt'
+         environmentServiceNameAzureRM: 'maheshsvc'
+     - task: TerraformTask@5
+       inputs:
+         provider: 'azurerm'
+         command: 'plan'
+         workingDirectory: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+         environmentServiceNameAzureRM: 'maheshsvc'
+
+# ---------Scanning tools-----------
+
+- stage: scanning
+  displayName: terraform securiity scan
+  pool: maheshagent
+  jobs:
+   - job: scanning
+     displayName: tflint scanning
+     steps :
+     - task: PowerShell@2
+       inputs:
+         targetType: 'inline'
+         script: 'winget install terraformlinters.tflint --accept-source-agreements --accept-package-agreements; exit 0'
+         workingDirectory: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+   - job: tfsecscanning
+     displayName: tfsec scanning
+     steps:
+      - task: tfsec@1
+        inputs:
+          version: 'v1.26.0'
+          dir: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+
+
+# ----------manual validation--------------
+
+- stage: approval
+  displayName: approval and varify
+  jobs:
+    - job: manualvalidation
+      displayName: Manual Validation
+      pool : server
+      steps:
+      - task: ManualValidation@1
+        inputs:
+          notifyUsers: 'mahesh.hrai.bpl@outlook.com'
+          approvers: 'mahesh.hrai.bpl@outlook.com'
+          instructions: 'check and verify'
+
+# -----------terraform apply--------------
+
+- stage: terraformapply
+  displayName: terraform apply
+  jobs:
+    - job: terraformapply
+      displayName: terraform apply
+      pool : maheshagent
+      steps:
+      - task: TerraformTask@5
+        inputs:
+          provider: 'azurerm'
+          command: 'init'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+          backendServiceArm: 'maheshsvc'
+          backendAzureRmStorageAccountName: 'maheshdstg07'
+          backendAzureRmContainerName: 'maheshcont'
+          backendAzureRmKey: 'terraform.tfstate'
+
+      - task: TerraformTask@5
+        displayName: terraform apply
+        inputs:
+          provider: 'azurerm'
+          command: 'apply'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/enviroment/dev'
+          environmentServiceNameAzureRM: 'maheshsvc'
