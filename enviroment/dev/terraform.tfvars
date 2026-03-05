@@ -27,6 +27,12 @@ subnets_n = {
         rg_name ="rg-terraform-01"
         vnet_name ="terraform_vnet1"             # ✔ Valid prefix
       }
+      subnet2 ={
+        name = "terraform_subnet1"
+        rg_name ="rg-terraform-01"
+        vnet_name ="terraform_vnet1"
+        address_prefixes =["10.0.2.0/24"]
+      }
 
 }
 pip_n= {
