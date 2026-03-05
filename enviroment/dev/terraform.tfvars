@@ -2,7 +2,11 @@ rgs_n ={
     rg1={
         name="rg-terraform-01"
         location="eastus"
-    }   
+    }
+    rg1={
+        name="rg-terraform-02"
+        location="eastus"
+    }      
 }
 
 vnets_n ={
